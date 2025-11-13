@@ -220,7 +220,7 @@ const ProductivityScreen: React.FC = () => {
                         <div className="flex items-center gap-4">
                             <button onClick={toggleTimer} className={`w-32 text-center text-lg font-semibold py-2 rounded-lg transition-colors text-white ${isTimerActive ? 'bg-rose-500 hover:bg-rose-600' : 'bg-green-500 hover:bg-green-600'}`}>{isTimerActive ? 'Pausar' : 'Iniciar'}</button>
                             <button onClick={resetTimer} aria-label="Resetar timer" className="w-10 h-10 flex items-center justify-center bg-black/5 dark:bg-white/10 rounded-full text-gray-500 dark:text-white/60 hover:bg-black/10 dark:hover:bg-white/20 transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h5M4 9a8 8 0 0111.95-6.95M20 15h-5v5m0-5a8 8 0 01-11.95 6.95" /></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0011.664 0l3.181-3.183m-4.991-2.696L7.985 5.644m0 0l-3.182 3.182m3.182-3.182v4.992" /></svg>
                             </button>
                         </div>
                         <p className="text-sm text-gray-500 dark:text-white/60 mt-3">Sessões de foco concluídas: {pomodoroCount}</p>
