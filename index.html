@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zenith Vision</title>
+    <script>
+        tailwind.config = {
+            darkMode: 'class'
+        }
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500&display=swap');
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+            touch-action: none; /* Prevent default browser touch actions like pull-to-refresh */
+        }
+        @keyframes shine {
+            from { background-position: 200% center; }
+            to { background-position: -200% center; }
+        }
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        @keyframes bounce-click {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(0.85); }
+        }
+        .animate-bounce-click {
+            animation: bounce-click 0.3s ease-out;
+        }
+        .animated-border::before {
+            content: '';
+            position: absolute;
+            z-index: -1;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: conic-gradient(
+                transparent,
+                rgba(251, 146, 60, 0.7), /* orange-400 */
+                rgba(251, 113, 133, 0.8), /* rose-400 */
+                rgba(236, 72, 153, 0.7), /* pink-500 */
+                transparent 30%
+            );
+            animation: rotate 6s linear infinite;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 0.9;
+            }
+            50% {
+                transform: scale(1.08);
+                opacity: 1;
+            }
+        }
+
+        .celestial-body {
+            width: 2rem; /* 32px */
+            height: 2rem; /* 32px */
+            border-radius: 9999px;
+            animation: pulse-glow 4s ease-in-out infinite;
+        }
+        
+        .rising-sun-icon {
+            background: radial-gradient(circle, #FFF59D 0%, #FFD54F 50%, #FFB300 100%);
+            box-shadow: 0 0 12px 3px rgba(255, 236, 179, 0.7), 0 0 25px 10px rgba(255, 167, 38, 0.5);
+        }
+        
+        .setting-sun-icon {
+            background: radial-gradient(circle, #FFAB91 0%, #FF7043 50%, #F4511E 100%);
+            box-shadow: 0 0 12px 3px rgba(255, 171, 145, 0.7), 0 0 25px 10px rgba(244, 112, 66, 0.5);
+        }
+        
+        .moon-icon {
+            background: radial-gradient(circle, #F5F5F5 0%, #E0E0E0 100%);
+            box-shadow: 
+                inset 4px -2px 2px 0px rgba(0,0,0,0.1),
+                inset -3px 3px 3px 1px rgba(0,0,0,0.08),
+                0 0 12px 2px rgba(224, 242, 241, 0.8), 
+                0 0 25px 8px rgba(178, 223, 219, 0.5);
+        }
+        @keyframes popIn {
+            0% {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+            80% {
+                opacity: 1;
+                transform: scale(1.05);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        .animate-pop-in {
+            animation: popIn 0.4s ease-out forwards;
+        }
+        
+        /* Animation for deleting an item */
+        @keyframes shrinkOut {
+            from {
+                transform: scale(1);
+                opacity: 1;
+                height: 88px; /* Corresponds to p-5, h-12 of icon, etc. */
+                margin-bottom: 12px; /* space-y-3 */
+            }
+            to {
+                transform: scale(0.8);
+                opacity: 0;
+                height: 0;
+                padding-top: 0;
+                padding-bottom: 0;
+                margin-bottom: 0;
+            }
+        }
+        .animate-shrink-out {
+            animation: shrinkOut 0.3s ease-out forwards;
+        }
+        
+        .swipe-action {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+        }
+
+        /* Modal Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes scaleIn {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        .animate-scale-in {
+            animation: scaleIn 0.3s ease-out forwards;
+        }
+
+        @keyframes slideInUp {
+            from {
+                transform: translateY(100%);
+            }
+            to {
+                transform: translateY(0);
+            }
+        }
+        .animate-slide-in-up {
+            animation: slideInUp 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        }
+
+        /* Success Checkmark Animation */
+        @keyframes stroke-animation {
+            100% { stroke-dashoffset: 0; }
+        }
+        @keyframes scale-animation {
+            0%, 100% { transform: none; }
+            50% { transform: scale3d(1.1, 1.1, 1); }
+        }
+        .success-checkmark {
+            width: 80px; height: 80px;
+        }
+        .success-checkmark__circle {
+            stroke-dasharray: 166; stroke-dashoffset: 166;
+            stroke-width: 3; stroke-miterlimit: 10;
+            stroke: #22c55e; /* green-500 */
+            fill: none;
+            animation: stroke-animation 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+        }
+        .success-checkmark__check {
+            transform-origin: 50% 50%;
+            stroke-dasharray: 48; stroke-dashoffset: 48;
+            stroke-width: 4;
+            stroke: #22c55e; /* green-500 */
+            fill: none;
+            animation: stroke-animation 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.6s forwards;
+        }
+        .success-checkmark__container {
+             animation: scale-animation .4s ease-in-out .7s both;
+        }
+    </style>
+<script>
+    // On page load or when changing themes, best to add inline in `head` to avoid FOUC
+    if (localStorage.getItem('zenith-theme') === 'dark' || (!('zenith-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+  }
+}
+</script>
+</head>
+<body class="bg-gray-100 dark:bg-black">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+</body>
+</html>
