@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Dashboard from './Dashboard';
 import SupermarketScreen from './SupermarketScreen';
 import FinancesScreen from './FinancesScreen';
+import ProductivityScreen from './ProductivityScreen';
 
 const App: React.FC = () => {
   const [activeButton, setActiveButton] = useState<string>('dashboard');
@@ -59,12 +60,13 @@ const App: React.FC = () => {
           {activeButton === 'dashboard' && <Dashboard navigateTo={handleIconClick} theme={theme} toggleTheme={toggleTheme} />}
           {activeButton === 'supermarket' && <SupermarketScreen />}
           {activeButton === 'finances' && <FinancesScreen />}
+          {activeButton === 'productivity' && <ProductivityScreen />}
         </div>
         
         {/* Floating Menu with Animated Border */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-xs h-20 p-[1.5px] rounded-3xl overflow-hidden shadow-lg z-20">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-sm h-20 p-[1.5px] rounded-3xl overflow-hidden shadow-lg z-20">
           <div className="animated-border w-full h-full">
-            <div className="w-full h-full bg-gray-200/30 dark:bg-black/30 backdrop-blur-lg rounded-[22px] flex items-center justify-center gap-4">
+            <div className="w-full h-full bg-gray-200/30 dark:bg-black/30 backdrop-blur-lg rounded-[22px] flex items-center justify-around">
               
               {/* Dashboard Icon */}
               <button 
@@ -103,6 +105,24 @@ const App: React.FC = () => {
                   strokeWidth={1.5}
                 >
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c.51 0 .962-.343 1.087-.835l1.823-6.44a1.125 1.125 0 00-1.087-1.437H5.25M7.5 14.25L5.106 5.165m0 0a1.125 1.125 0 011.125-1.125h9.75c.621 0 1.125.504 1.125 1.125M7.5 14.25v1.875c0 .621.504 1.125 1.125 1.125h3.375c.621 0 1.125-.504 1.125-1.125V14.25m0-9.375h-3.375c-.621 0-1.125.504-1.125 1.125v1.875m-3.375 0h11.218" />
+                </svg>
+              </button>
+
+              {/* Productivity Icon */}
+              <button 
+                onClick={() => handleIconClick('productivity')}
+                className={`group w-16 h-16 flex items-center justify-center rounded-2xl transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-black/50 dark:focus:ring-white/50 ${activeButton === 'productivity' ? '' : 'hover:bg-black/5 dark:hover:bg-white/10'}`} 
+                aria-label="Produtividade"
+              >
+                 <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  className={`h-9 w-9 transition-all duration-300 ${activeButton === 'productivity' ? 'text-black dark:text-white' : 'text-gray-600 dark:text-white/70 group-hover:text-black dark:group-hover:text-white group-hover:rotate-6 group-hover:scale-110'} ${clicked === 'productivity' ? 'animate-bounce-click' : ''}`}
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor" 
+                  strokeWidth={1.5}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </button>
 
