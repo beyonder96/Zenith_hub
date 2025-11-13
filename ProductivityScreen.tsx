@@ -228,7 +228,7 @@ const ProductivityScreen: React.FC = () => {
             </div>
             
             <div className="flex flex-col flex-grow bg-gray-200/50 dark:bg-white/5 backdrop-blur-sm rounded-2xl overflow-hidden">
-                <div className="flex-grow overflow-y-auto p-4">
+                <div className="flex-grow overflow-y-auto p-4 pb-28">
                     {tasks.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-white/60">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
