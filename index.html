@@ -194,6 +194,32 @@
         .success-checkmark__container {
              animation: scale-animation .4s ease-in-out .7s both;
         }
+
+        /* Date Picker styles */
+        .date-picker-wheel {
+            height: 224px; /* 56px * 4 */
+            overflow-y: scroll;
+            scroll-snap-type: y mandatory;
+            -webkit-overflow-scrolling: touch; /* For smooth scrolling on iOS */
+        }
+        .date-picker-wheel::-webkit-scrollbar {
+            display: none; /* Hide scrollbar for Chrome, Safari and Opera */
+        }
+        .date-picker-wheel {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        .date-picker-item {
+            height: 56px; /* Fixed height for each item */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            scroll-snap-align: center;
+        }
+        .date-picker-wheels-container {
+            -webkit-mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
+            mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
+        }
     </style>
 <script>
     // On page load or when changing themes, best to add inline in `head` to avoid FOUC

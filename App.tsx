@@ -65,7 +65,7 @@ const App: React.FC = () => {
         </div>
         
         {/* Floating Menu with Animated Border */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-sm h-20 p-[1.5px] rounded-3xl overflow-hidden shadow-lg z-20">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-sm h-20 p-[1.5px] rounded-3xl overflow-hidden shadow-lg z-50">
           <div className="animated-border w-full h-full">
             <div className="w-full h-full bg-gray-200/30 dark:bg-black/30 backdrop-blur-lg rounded-[22px] flex items-center justify-around">
               
