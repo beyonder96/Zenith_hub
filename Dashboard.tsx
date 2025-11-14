@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { getTasks, Task, getItems, ListItem as SupermarketItem } from './db';
 
 // --- Type Definitions (to be shared or defined locally) ---
 interface Transaction {
@@ -8,15 +9,9 @@ interface Transaction {
   date: string; // YYYY-MM-DD
   category: string;
 }
-interface SupermarketItem {
-  id: number;
-  text: string;
-  completed: boolean;
-}
 
 const STORAGE_KEYS = {
     TRANSACTIONS: 'zenith-finances-transactions',
-    SUPERMARKET: 'zenith-supermarket-list',
     PROFILE_PIC: 'zenith-profile-pic',
 };
 const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -52,9 +47,10 @@ interface WeekCalendarProps {
     today: Date;
     selectedDate: Date;
     onDateSelect: (date: Date) => void;
+    tasks: Task[];
 }
 
-const WeekCalendar: React.FC<WeekCalendarProps> = ({ today, selectedDate, onDateSelect }) => {
+const WeekCalendar: React.FC<WeekCalendarProps> = ({ today, selectedDate, onDateSelect, tasks }) => {
     const [dates, setDates] = useState<Date[]>([]);
 
     useEffect(() => {
@@ -75,6 +71,12 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({ today, selectedDate, onDate
                date1.getMonth() === date2.getMonth() &&
                date1.getDate() === date2.getDate();
     };
+    
+    const getTaskCountForDate = (date: Date) => {
+        const dateString = date.toISOString().split('T')[0]; // YYYY-MM-DD
+        return tasks.filter(task => task.dueDate === dateString && !task.completed).length;
+    };
+
 
     return (
         <div className="flex w-full justify-center space-x-2 p-2 rounded-2xl bg-gray-200/50 dark:bg-white/5 backdrop-blur-sm">
@@ -84,12 +86,14 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({ today, selectedDate, onDate
                 
                 const isSelected = isSameDay(date, selectedDate);
                 const isToday = isSameDay(date, today);
+                const taskCount = getTaskCountForDate(date);
 
                 return (
                     <button
                         key={index}
                         onClick={() => onDateSelect(date)}
                         className={`
+                            relative
                             flex flex-col items-center justify-center w-12 h-16 rounded-xl 
                             transition-all duration-300 ease-in-out transform focus:outline-none
                             ${isSelected 
@@ -97,6 +101,11 @@ const WeekCalendar: React.FC<WeekCalendarProps> = ({ today, selectedDate, onDate
                                 : `text-gray-600 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/10 hover:text-black dark:hover:text-white ${isToday ? 'border border-black/20 dark:border-white/30' : ''}`}
                         `}
                     >
+                        {taskCount > 0 && (
+                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold ring-2 ring-gray-100 dark:ring-black">
+                                {taskCount}
+                            </div>
+                        )}
                         <span className="text-xs font-medium">{dayName}</span>
                         <span className="text-xl font-bold">{dayOfMonth}</span>
                     </button>
@@ -112,10 +121,11 @@ interface DaySummaryProps {
     selectedDate: Date;
     transactions: Transaction[];
     supermarketItems: SupermarketItem[];
-    onNavigate: (screen: 'finances' | 'supermarket') => void;
+    tasks: Task[];
+    onNavigate: (screen: 'finances' | 'supermarket' | 'productivity') => void;
 }
 
-const DaySummary: React.FC<DaySummaryProps> = ({ selectedDate, transactions, supermarketItems, onNavigate }) => {
+const DaySummary: React.FC<DaySummaryProps> = ({ selectedDate, transactions, supermarketItems, tasks, onNavigate }) => {
     const summaryData = useMemo(() => {
         const dateString = selectedDate.toISOString().split('T')[0];
         
@@ -123,17 +133,22 @@ const DaySummary: React.FC<DaySummaryProps> = ({ selectedDate, transactions, sup
         const dayNetTotal = dayTransactions.reduce((sum, tx) => sum + tx.amount, 0);
 
         const completedItems = supermarketItems.filter(item => item.completed).length;
+        
+        const dayTasks = tasks.filter(task => task.dueDate === dateString);
+        const completedTasks = dayTasks.filter(task => task.completed).length;
 
         return {
             dayTransactionsCount: dayTransactions.length,
             dayNetTotal,
             totalSupermarketItems: supermarketItems.length,
             completedSupermarketItems: completedItems,
+            totalTasks: dayTasks.length,
+            completedTasks: completedTasks,
         };
-    }, [selectedDate, transactions, supermarketItems]);
+    }, [selectedDate, transactions, supermarketItems, tasks]);
 
     return (
-        <div className="w-full mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="w-full mt-6 grid grid-cols-1 gap-4">
             {/* Finances Card */}
             <button onClick={() => onNavigate('finances')} className="bg-white/80 dark:bg-white/10 backdrop-blur-lg border border-black/10 dark:border-white/20 rounded-2xl p-4 text-left hover:bg-white dark:hover:bg-white/20 transition-all duration-300 w-full focus:outline-none focus:ring-2 focus:ring-orange-400/80">
                 <div className="flex items-center justify-between mb-2">
@@ -156,7 +171,7 @@ const DaySummary: React.FC<DaySummaryProps> = ({ selectedDate, transactions, sup
             <button onClick={() => onNavigate('supermarket')} className="bg-white/80 dark:bg-white/10 backdrop-blur-lg border border-black/10 dark:border-white/20 rounded-2xl p-4 text-left hover:bg-white dark:hover:bg-white/20 transition-all duration-300 w-full focus:outline-none focus:ring-2 focus:ring-orange-400/80">
                  <div className="flex items-center justify-between mb-2">
                     <h3 className="font-semibold text-gray-800 dark:text-white/90">Lista de Compras</h3>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-500 dark:text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c.51 0 .962-.343 1.087-.835l1.823-6.44a1.125 1.125 0 00-1.087-1.437H5.25M7.5 14.25L5.106 5.165m0 0a1.125 1.125 0 011.125-1.125h9.75c.621 0 1.125.504 1.125 1.125M7.5 14.25v1.875c0 .621.504 1.125 1.125 1.125h3.375c.621 0 1.125-.504 1.125-1.125V14.25m0-9.375h-3.375c-.621 0-1.125.504-1.125 1.125v1.875m-3.375 0h11.218" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-500 dark:text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                 </div>
                 {summaryData.totalSupermarketItems > 0 ? (
                     <div>
@@ -167,6 +182,24 @@ const DaySummary: React.FC<DaySummaryProps> = ({ selectedDate, transactions, sup
                      <p className="text-sm text-gray-500 dark:text-white/60 italic">Lista de compras vazia.</p>
                 )}
             </button>
+            
+            {/* Productivity Card */}
+            <button onClick={() => onNavigate('productivity')} className="bg-white/80 dark:bg-white/10 backdrop-blur-lg border border-black/10 dark:border-white/20 rounded-2xl p-4 text-left hover:bg-white dark:hover:bg-white/20 transition-all duration-300 w-full focus:outline-none focus:ring-2 focus:ring-orange-400/80">
+                <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold text-gray-800 dark:text-white/90">Tarefas do Dia</h3>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-500 dark:text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                {summaryData.totalTasks > 0 ? (
+                    <div>
+                        <p className="text-sm text-gray-600 dark:text-white/70">{summaryData.totalTasks} tarefa{summaryData.totalTasks > 1 ? 's' : ''} para hoje</p>
+                        <p className="text-xl font-bold text-gray-700 dark:text-white/80">{summaryData.completedTasks} / {summaryData.totalTasks} concluída{summaryData.totalTasks > 1 ? 's' : ''}</p>
+                    </div>
+                ) : (
+                    <p className="text-sm text-gray-500 dark:text-white/60 italic">Nenhuma tarefa para hoje.</p>
+                )}
+            </button>
         </div>
     );
 };
@@ -174,7 +207,7 @@ const DaySummary: React.FC<DaySummaryProps> = ({ selectedDate, transactions, sup
 
 // --- Main Dashboard Component ---
 interface DashboardProps {
-    navigateTo: (screen: 'finances' | 'supermarket') => void;
+    navigateTo: (screen: 'finances' | 'supermarket' | 'productivity') => void;
     theme: 'light' | 'dark';
     toggleTheme: () => void;
 }
@@ -191,26 +224,49 @@ const Dashboard: React.FC<DashboardProps> = ({ navigateTo, theme, toggleTheme })
     const [selectedDate, setSelectedDate] = useState(today);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [supermarketItems, setSupermarketItems] = useState<SupermarketItem[]>([]);
+    const [tasks, setTasks] = useState<Task[]>([]);
     const [profilePic, setProfilePic] = useState<string | null>(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const profileContainerRef = useRef<HTMLDivElement>(null);
 
-    // Effect to load data from localStorage on mount
+    // Effect to load data from storage on mount
     useEffect(() => {
         try {
+            // Load transactions from localStorage
             const storedTransactions = window.localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
             setTransactions(storedTransactions ? JSON.parse(storedTransactions) : []);
             
-            const storedSupermarketItems = window.localStorage.getItem(STORAGE_KEYS.SUPERMARKET);
-            setSupermarketItems(storedSupermarketItems ? JSON.parse(storedSupermarketItems) : []);
-            
+            // Load profile picture from localStorage
             const storedProfilePic = window.localStorage.getItem(STORAGE_KEYS.PROFILE_PIC);
             if (storedProfilePic) {
                 setProfilePic(storedProfilePic);
             }
+
+            // Load tasks from IndexedDB
+            const loadTasks = async () => {
+                try {
+                    const dbTasks = await getTasks();
+                    setTasks(dbTasks);
+                } catch (error) {
+                    console.error("Error loading tasks from DB", error);
+                }
+            };
+            loadTasks();
+
+            // Load supermarket items from IndexedDB
+            const loadSupermarketItems = async () => {
+                try {
+                    const dbItems = await getItems();
+                    setSupermarketItems(dbItems);
+                } catch (error) {
+                    console.error("Error loading supermarket items from DB on Dashboard", error);
+                }
+            };
+            loadSupermarketItems();
+
         } catch (error) {
-            console.error("Error reading data from localStorage on Dashboard", error);
+            console.error("Error reading data from storage on Dashboard", error);
         }
     }, []);
     
@@ -340,25 +396,16 @@ const Dashboard: React.FC<DashboardProps> = ({ navigateTo, theme, toggleTheme })
                             </button>
                             <button
                                 onClick={toggleTheme}
-                                className="flex items-center justify-between w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                                className="flex items-center justify-between w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/10 transition-colors rounded-b-lg"
                                 role="menuitem"
                             >
                                 <div className="flex items-center gap-3">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>
                                     <span>Alterar Tema</span>
                                 </div>
-                                <div role="switch" aria-checked={theme === 'dark'} className="relative w-11 h-6 rounded-full transition-colors duration-300 bg-gray-300 dark:bg-orange-500">
-                                    <div className="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-300 dark:translate-x-5"></div>
+                                <div role="switch" aria-checked={theme === 'dark'} className={`relative w-11 h-6 rounded-full transition-colors duration-300 ${theme === 'dark' ? 'bg-orange-500' : 'bg-gray-300'}`}>
+                                    <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-300 ${theme === 'dark' ? 'translate-x-5' : ''}`}></div>
                                 </div>
-                            </button>
-                            <div className="h-[1px] bg-black/10 dark:bg-white/10 my-1 mx-2"></div>
-                            <button
-                                onClick={() => setIsMenuOpen(false)} // Placeholder action
-                                className="flex items-center gap-3 w-full text-left px-4 py-2 text-sm text-rose-500 dark:text-rose-400 hover:bg-rose-500/10 dark:hover:bg-rose-400/20 transition-colors rounded-b-lg"
-                                role="menuitem"
-                            >
-                               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                               <span>Logout</span>
                             </button>
                         </div>
                     </div>
@@ -372,11 +419,17 @@ const Dashboard: React.FC<DashboardProps> = ({ navigateTo, theme, toggleTheme })
                 <p className="mt-4 mb-8 text-sm font-light text-gray-600 dark:text-white/70">
                     Aguardando suas coordenadas.
                 </p>
-                <WeekCalendar today={today} selectedDate={selectedDate} onDateSelect={setSelectedDate} />
+                <WeekCalendar 
+                    today={today} 
+                    selectedDate={selectedDate} 
+                    onDateSelect={setSelectedDate}
+                    tasks={tasks}
+                />
                 <DaySummary 
                     selectedDate={selectedDate} 
                     transactions={transactions}
                     supermarketItems={supermarketItems}
+                    tasks={tasks}
                     onNavigate={navigateTo}
                 />
             </div>

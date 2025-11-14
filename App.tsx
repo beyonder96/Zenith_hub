@@ -20,21 +20,22 @@ const App: React.FC = () => {
     return 'light';
   });
 
-  const toggleTheme = () => {
-      setTheme(prevTheme => {
-          const newTheme = prevTheme === 'light' ? 'dark' : 'light';
-          window.localStorage.setItem('zenith-theme', newTheme);
-          return newTheme;
-      });
-  };
-
   useEffect(() => {
-      if (theme === 'dark') {
-          document.documentElement.classList.add('dark');
-      } else {
-          document.documentElement.classList.remove('dark');
-      }
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    try {
+      window.localStorage.setItem('zenith-theme', theme);
+    } catch (error) {
+      console.error("Could not save theme to local storage.", error);
+    }
   }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
+  };
 
   const handleIconClick = (name: string) => {
     setActiveButton(name);
@@ -104,7 +105,7 @@ const App: React.FC = () => {
                   stroke="currentColor" 
                   strokeWidth={1.5}
                 >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c.51 0 .962-.343 1.087-.835l1.823-6.44a1.125 1.125 0 00-1.087-1.437H5.25M7.5 14.25L5.106 5.165m0 0a1.125 1.125 0 011.125-1.125h9.75c.621 0 1.125.504 1.125 1.125M7.5 14.25v1.875c0 .621.504 1.125 1.125 1.125h3.375c.621 0 1.125-.504 1.125-1.125V14.25m0-9.375h-3.375c-.621 0-1.125.504-1.125 1.125v1.875m-3.375 0h11.218" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
               </button>
 

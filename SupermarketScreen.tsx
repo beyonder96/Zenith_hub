@@ -1,14 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getItems, addItem, updateItem, deleteItem, clearAllItems } from './db';
-
-interface ListItem {
-  id: number;
-  text: string;
-  completed: boolean;
-  quantity?: number;
-  unitPrice?: number;
-  totalPrice?: number;
-}
+import { getItems, addItem, updateItem, deleteItem, clearAllItems, ListItem } from './db';
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
