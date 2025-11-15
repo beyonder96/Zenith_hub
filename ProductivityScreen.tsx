@@ -1,16 +1,24 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { getTasks, addTask, updateTask, deleteTask, Task } from './db';
+import { getTasks, addTask, updateTask, deleteTask, Task, Subtask } from './db';
 import { GoogleGenAI, Type } from "@google/genai";
 
 const FOCUS_DURATION = 25 * 60; // 25 minutes
 const BREAK_DURATION = 5 * 60; // 5 minutes
 
 type Importance = 'low' | 'medium' | 'high';
+type RecurrenceFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 const importanceMap: Record<Importance, { label: string; color: string }> = {
     low: { label: 'Baixa', color: 'bg-sky-400' },
     medium: { label: 'Média', color: 'bg-orange-400' },
     high: { label: 'Alta', color: 'bg-rose-500' },
+};
+
+const recurrenceMap: Record<RecurrenceFrequency, string> = {
+    daily: 'Diária',
+    weekly: 'Semanal',
+    monthly: 'Mensal',
+    yearly: 'Anual',
 };
 
 const sortTasks = (tasks: Task[]): Task[] => {
@@ -168,6 +176,22 @@ const DatePicker: React.FC<DatePickerProps> = ({ isOpen, onClose, onConfirm, ini
     );
 };
 
+const calculateNextDueDate = (currentDateStr: string, frequency: RecurrenceFrequency): string => {
+    // Use midday to avoid timezone boundary issues
+    const date = new Date(currentDateStr + 'T12:00:00');
+    switch (frequency) {
+        case 'daily': date.setDate(date.getDate() + 1); break;
+        case 'weekly': date.setDate(date.getDate() + 7); break;
+        case 'monthly': date.setMonth(date.getMonth() + 1); break;
+        case 'yearly': date.setFullYear(date.getFullYear() + 1); break;
+    }
+    // Manually build string to avoid timezone shifts from toISOString()
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 
 const ProductivityScreen: React.FC = () => {
     const [tasks, setTasks] = useState<Task[]>([]);
@@ -189,6 +213,12 @@ const ProductivityScreen: React.FC = () => {
     const [formText, setFormText] = useState('');
     const [formDueDate, setFormDueDate] = useState('');
     const [formImportance, setFormImportance] = useState<Importance | undefined>(undefined);
+    const [formIsRecurring, setFormIsRecurring] = useState(false);
+    const [formRecurrenceFrequency, setFormRecurrenceFrequency] = useState<RecurrenceFrequency>('monthly');
+    
+    // State for Drag and Drop
+    const [dragOverInfo, setDragOverInfo] = useState<{ subtaskId: number; position: 'top' | 'bottom' } | null>(null);
+    const draggedSubtaskRef = useRef<{ taskId: number; subtask: Subtask } | null>(null);
 
     const focusedTask = useMemo(() => tasks.find(t => t.id === focusedTaskId), [tasks, focusedTaskId]);
 
@@ -246,9 +276,19 @@ const ProductivityScreen: React.FC = () => {
     const handleSaveTask = async (e: React.FormEvent) => {
         e.preventDefault();
         if (formText.trim() === '') return;
-
+    
+        const taskData = {
+            text: formText,
+            dueDate: formDueDate || undefined,
+            importance: formImportance,
+            recurring: formIsRecurring ? { frequency: formRecurrenceFrequency } : undefined,
+        };
+    
         if (editingTask) {
-            const updatedTask = { ...editingTask, text: formText, dueDate: formDueDate || undefined, importance: formImportance };
+            const updatedTask = { ...editingTask, ...taskData };
+            if (formIsRecurring) {
+                updatedTask.completed = false; // Recurring tasks should be active
+            }
             setTasks(prev => sortTasks(prev.map(t => t.id === editingTask.id ? updatedTask : t)));
             await updateTask(updatedTask);
         } else {
@@ -258,6 +298,7 @@ const ProductivityScreen: React.FC = () => {
                 completed: false,
                 dueDate: formDueDate || undefined,
                 importance: formImportance,
+                recurring: formIsRecurring ? { frequency: formRecurrenceFrequency } : undefined,
             };
             setTasks(prev => sortTasks([newTask, ...prev]));
             await addTask(newTask);
@@ -266,11 +307,40 @@ const ProductivityScreen: React.FC = () => {
     };
 
     const handleToggleTask = async (task: Task) => {
-        const updatedTask = { ...task, completed: !task.completed };
-        setTasks(prev => sortTasks(prev.map(t => t.id === task.id ? updatedTask : t)));
-        await updateTask(updatedTask);
+        if (task.recurring && !task.completed) {
+            const nextDueDate = calculateNextDueDate(
+                task.dueDate || new Date().toISOString().split('T')[0], 
+                task.recurring.frequency
+            );
+            const resetSubtasks = task.subtasks?.map(st => ({ ...st, completed: false }));
+            const updatedTask = { ...task, dueDate: nextDueDate, subtasks: resetSubtasks };
+            
+            setTasks(prev => sortTasks(prev.map(t => t.id === task.id ? updatedTask : t)));
+            await updateTask(updatedTask);
+    
+        } else {
+            const updatedTask = { ...task, completed: !task.completed };
+            setTasks(prev => sortTasks(prev.map(t => t.id === task.id ? updatedTask : t)));
+            await updateTask(updatedTask);
+        }
         setOpenMenuId(null);
     };
+
+    const handleToggleSubtask = async (taskId: number, subtaskId: number) => {
+        const taskToUpdate = tasks.find(t => t.id === taskId);
+        if (!taskToUpdate || !taskToUpdate.subtasks) return;
+
+        const updatedSubtasks = taskToUpdate.subtasks.map(st => 
+            st.id === subtaskId ? { ...st, completed: !st.completed } : st
+        );
+
+        const updatedTask = { ...taskToUpdate, subtasks: updatedSubtasks };
+        
+        // Update state without re-sorting main task list to preserve UI stability
+        setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
+        await updateTask(updatedTask);
+    };
+
 
     const handleDeleteTask = async (id: number) => {
         if (focusedTaskId === id) setFocusedTaskId(null);
@@ -307,14 +377,23 @@ const ProductivityScreen: React.FC = () => {
             });
 
             const result = JSON.parse(response.text);
-            const subtasks: string[] = result.subtasks || [];
+            const subtaskTexts: string[] = result.subtasks || [];
             
-            const newTasks: Task[] = subtasks.map((subtaskText, index) => ({ id: Date.now() + index, text: subtaskText, completed: false, importance: task.importance, dueDate: task.dueDate }));
-            for (const newTask of newTasks) await addTask(newTask);
-            
-            const remainingTasks = tasks.filter(t => t.id !== task.id);
-            setTasks(sortTasks([...remainingTasks, ...newTasks]));
-            await deleteTask(task.id);
+            if (subtaskTexts.length > 0) {
+                 const newSubtasks: Subtask[] = subtaskTexts.map((subtaskText, index) => ({
+                    id: Date.now() + index,
+                    text: subtaskText,
+                    completed: false,
+                }));
+
+                const updatedTask = {
+                    ...task,
+                    subtasks: [...(task.subtasks || []), ...newSubtasks],
+                };
+                
+                setTasks(prev => sortTasks(prev.map(t => t.id === task.id ? updatedTask : t)));
+                await updateTask(updatedTask);
+            }
 
         } catch (error) {
             console.error("Error with Gemini API:", error);
@@ -332,6 +411,8 @@ const ProductivityScreen: React.FC = () => {
         setFormDueDate('');
         setFormImportance(undefined);
         setEditingTask(null);
+        setFormIsRecurring(false);
+        setFormRecurrenceFrequency('monthly');
     };
     const openAddModal = () => { resetForm(); setIsModalOpen(true); };
     const openEditModal = (task: Task) => {
@@ -339,6 +420,8 @@ const ProductivityScreen: React.FC = () => {
         setFormText(task.text);
         setFormDueDate(task.dueDate || '');
         setFormImportance(task.importance);
+        setFormIsRecurring(!!task.recurring);
+        setFormRecurrenceFrequency(task.recurring?.frequency || 'monthly');
         setOpenMenuId(null);
         setIsModalOpen(true);
     };
@@ -357,6 +440,68 @@ const ProductivityScreen: React.FC = () => {
         setIsTimerActive(false);
         setTimeLeft(timerMode === 'focus' ? FOCUS_DURATION : BREAK_DURATION);
         setIsPomodoroExpanded(false);
+    };
+    
+    // --- Subtask Drag and Drop Handlers ---
+    const handleSubtaskDragStart = (e: React.DragEvent<HTMLLIElement>, taskId: number, subtask: Subtask) => {
+        draggedSubtaskRef.current = { taskId, subtask };
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', subtask.id.toString()); // For Firefox compatibility
+        setTimeout(() => {
+            if (e.target instanceof HTMLElement) e.target.classList.add('dragging');
+        }, 0);
+    };
+
+    const handleSubtaskDragOver = (e: React.DragEvent<HTMLLIElement>, subtaskId: number) => {
+        e.preventDefault();
+        if (!draggedSubtaskRef.current || draggedSubtaskRef.current.subtask.id === subtaskId) return;
+        const targetElement = e.currentTarget;
+        const rect = targetElement.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        const position = e.clientY < midY ? 'top' : 'bottom';
+        if (dragOverInfo?.subtaskId !== subtaskId || dragOverInfo?.position !== position) {
+            setDragOverInfo({ subtaskId, position });
+        }
+    };
+
+    const handleSubtaskDragLeave = () => {
+        setDragOverInfo(null);
+    };
+
+    const handleSubtaskDrop = async (e: React.DragEvent<HTMLLIElement>, targetTaskId: number, targetSubtask: Subtask) => {
+        e.preventDefault();
+        if (!draggedSubtaskRef.current) return;
+
+        const { taskId: sourceTaskId, subtask: sourceSubtask } = draggedSubtaskRef.current;
+        if (sourceTaskId !== targetTaskId || sourceSubtask.id === targetSubtask.id) return;
+
+        const taskToUpdate = tasks.find(t => t.id === targetTaskId);
+        if (!taskToUpdate || !taskToUpdate.subtasks) return;
+
+        let subtasks = [...taskToUpdate.subtasks];
+        const sourceIndex = subtasks.findIndex(st => st.id === sourceSubtask.id);
+        const targetIndex = subtasks.findIndex(st => st.id === targetSubtask.id);
+        
+        const [movedItem] = subtasks.splice(sourceIndex, 1);
+        const adjustedTargetIndex = targetIndex > sourceIndex ? targetIndex - 1 : targetIndex;
+
+        if (dragOverInfo?.position === 'top') {
+            subtasks.splice(adjustedTargetIndex, 0, movedItem);
+        } else {
+            subtasks.splice(adjustedTargetIndex + 1, 0, movedItem);
+        }
+        
+        const updatedTask = { ...taskToUpdate, subtasks };
+        setTasks(prevTasks => prevTasks.map(t => t.id === targetTaskId ? updatedTask : t));
+        await updateTask(updatedTask);
+        
+        setDragOverInfo(null);
+    };
+
+    const handleSubtaskDragEnd = (e: React.DragEvent<HTMLLIElement>) => {
+        if (e.target instanceof HTMLElement) e.target.classList.remove('dragging');
+        draggedSubtaskRef.current = null;
+        setDragOverInfo(null);
     };
 
     const minutes = Math.floor(timeLeft / 60).toString().padStart(2, '0');
@@ -448,33 +593,49 @@ const ProductivityScreen: React.FC = () => {
                         <ul className="space-y-3">
                             {tasks.map(task => {
                                 const { day, month } = getCardDate(task.dueDate);
-                                return (
-                                <li key={task.id} className={`relative flex bg-white dark:bg-slate-800 rounded-xl shadow-sm animate-pop-in transition-all duration-300 ${task.completed ? 'opacity-50' : ''} ${focusedTaskId === task.id ? 'ring-2 ring-orange-400' : ''}`}>
-                                    <div className={`w-1.5 flex-shrink-0 rounded-l-xl ${task.importance ? importanceMap[task.importance].color : 'bg-gray-300 dark:bg-gray-600'}`}></div>
-                                    
-                                    <div 
-                                        onClick={() => handleSelectFocusTask(task)} 
-                                        className="flex items-center p-4 flex-grow cursor-pointer"
-                                    >
-                                        <div className="flex flex-col items-center justify-center w-12 text-center mr-4 flex-shrink-0">
-                                            <span className="text-2xl font-bold text-gray-800 dark:text-white">{day}</span>
-                                            <span className="text-xs uppercase font-semibold text-gray-500 dark:text-gray-400">{month}</span>
-                                        </div>
+                                const hasSubtasks = task.subtasks && task.subtasks.length > 0;
+                                const completedSubtasks = hasSubtasks ? task.subtasks.filter(st => st.completed).length : 0;
+                                const totalSubtasks = hasSubtasks ? task.subtasks.length : 0;
+                                const progressPercentage = totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0;
 
-                                        <div className="flex-grow">
-                                            <p className={`font-semibold text-gray-900 dark:text-white ${task.completed ? 'line-through' : ''}`}>{task.text}</p>
-                                            <span className="text-sm text-gray-500 dark:text-gray-400">{formatDate(task.dueDate)}</span>
+                                return (
+                                <li key={task.id} className={`flex flex-col bg-white dark:bg-slate-800 rounded-xl shadow-sm animate-pop-in transition-all duration-300 ${task.completed ? 'opacity-50' : ''} ${focusedTaskId === task.id ? 'ring-2 ring-orange-400' : ''}`}>
+                                    <div className="flex w-full">
+                                        <div className={`w-1.5 flex-shrink-0 rounded-l-xl ${task.importance ? importanceMap[task.importance].color : 'bg-gray-300 dark:bg-gray-600'}`}></div>
+                                        
+                                        <div 
+                                            onClick={() => handleSelectFocusTask(task)} 
+                                            className="flex items-center p-4 flex-grow cursor-pointer"
+                                        >
+                                            <div className="flex flex-col items-center justify-center w-12 text-center mr-4 flex-shrink-0">
+                                                <span className="text-2xl font-bold text-gray-800 dark:text-white">{day}</span>
+                                                <span className="text-xs uppercase font-semibold text-gray-500 dark:text-gray-400">{month}</span>
+                                            </div>
+
+                                            <div className="flex-grow">
+                                                <p className={`font-semibold text-gray-900 dark:text-white ${task.completed ? 'line-through' : ''}`}>{task.text}</p>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className="text-sm text-gray-500 dark:text-gray-400">{formatDate(task.dueDate)}</span>
+                                                    {task.recurring && (
+                                                        <div title={`Repete ${recurrenceMap[task.recurring.frequency].toLowerCase()}`}>
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-cyan-500 dark:text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0011.664 0l3.181-3.183m-4.991-2.696L7.985 5.644m0 0l-3.182 3.182m3.182-3.182v4.992" />
+                                                            </svg>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                    
-                                    <div className="flex items-center pr-2 flex-shrink-0">
-                                        {loadingTaskId === task.id ? (
-                                            <div className="w-6 h-6 border-2 border-t-transparent border-orange-400 rounded-full animate-spin mx-1"></div>
-                                        ) : (
-                                        <button onClick={() => handleMenuToggle(task.id)} className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-black/10 dark:hover:bg-white/10">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
-                                        </button>
-                                        )}
+                                        
+                                        <div className="flex items-center pr-2 flex-shrink-0">
+                                            {loadingTaskId === task.id ? (
+                                                <div className="w-6 h-6 border-2 border-t-transparent border-orange-400 rounded-full animate-spin mx-1"></div>
+                                            ) : (
+                                            <button onClick={() => handleMenuToggle(task.id)} className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-black/10 dark:hover:bg-white/10">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
+                                            </button>
+                                            )}
+                                        </div>
                                     </div>
                                     
                                      {openMenuId === task.id && (
@@ -484,7 +645,7 @@ const ProductivityScreen: React.FC = () => {
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                                         {task.completed ? <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0011.664 0l3.181-3.183m-4.991-2.696L7.985 5.644m0 0l-3.182 3.182m3.182-3.182v4.992" /> : <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />}
                                                     </svg>
-                                                    <span>{task.completed ? 'Reabrir Tarefa' : 'Concluir Tarefa'}</span>
+                                                    <span>{task.completed ? 'Reabrir Tarefa' : task.recurring ? 'Concluir Ciclo' : 'Concluir Tarefa'}</span>
                                                 </button>
                                                 <button onClick={() => openEditModal(task)} className="flex items-center gap-3 w-full text-left px-4 py-2 text-sm text-gray-800 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg>
@@ -499,6 +660,56 @@ const ProductivityScreen: React.FC = () => {
                                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                     <span>Deletar</span>
                                                 </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {hasSubtasks && (
+                                        <div className="px-4 pb-4 w-full">
+                                            <div className="mt-2 pt-2 border-t border-black/10 dark:border-white/10">
+                                                <div className="mb-2">
+                                                    <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                                        <span>Progresso</span>
+                                                        <span>{completedSubtasks} / {totalSubtasks}</span>
+                                                    </div>
+                                                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                                                        <div 
+                                                            className="bg-orange-400 h-1.5 rounded-full transition-all duration-500" 
+                                                            style={{ width: `${progressPercentage}%` }}
+                                                        ></div>
+                                                    </div>
+                                                </div>
+                                                <ul className="space-y-1 mt-2" onDragLeave={handleSubtaskDragLeave}>
+                                                    {task.subtasks.map(subtask => (
+                                                        <li 
+                                                            key={subtask.id} 
+                                                            className={`flex items-center rounded-lg transition-all duration-200
+                                                                ${dragOverInfo?.subtaskId === subtask.id && dragOverInfo.position === 'top' ? 'drop-indicator-top' : ''} 
+                                                                ${dragOverInfo?.subtaskId === subtask.id && dragOverInfo.position === 'bottom' ? 'drop-indicator-bottom' : ''}`}
+                                                            draggable={!task.completed}
+                                                            onDragStart={(e) => handleSubtaskDragStart(e, task.id, subtask)}
+                                                            onDragOver={(e) => handleSubtaskDragOver(e, subtask.id)}
+                                                            onDrop={(e) => handleSubtaskDrop(e, task.id, subtask)}
+                                                            onDragEnd={handleSubtaskDragEnd}
+                                                        >
+                                                            <button 
+                                                                onClick={() => handleToggleSubtask(task.id, subtask.id)}
+                                                                className="flex items-center w-full text-left py-1"
+                                                            >
+                                                                <div className="w-5 h-5 mr-3 flex-shrink-0 rounded border-2 border-gray-400 dark:border-white/40 flex items-center justify-center transition-all duration-300">
+                                                                    {subtask.completed && <div className="w-2.5 h-2.5 bg-orange-400 rounded-sm"></div>}
+                                                                </div>
+                                                                <span className={`text-sm flex-grow transition-all duration-300 ${subtask.completed ? 'line-through text-gray-500 dark:text-white/50' : 'text-gray-700 dark:text-white/90'}`}>
+                                                                    {subtask.text}
+                                                                </span>
+                                                            </button>
+                                                            <div className="text-gray-400 dark:text-gray-500 touch-none" style={{ cursor: task.completed ? 'default' : 'grab' }}>
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                    <path fillRule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L10 5.414 7.707 7.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3zm-3.707 9.293a1 1 0 011.414 0L10 14.586l2.293-2.293a1 1 0 011.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                                </svg>
+                                                            </div>
+                                                        </li>
+                                                    ))}
+                                                </ul>
                                             </div>
                                         </div>
                                     )}
@@ -549,6 +760,18 @@ const ProductivityScreen: React.FC = () => {
                                     ))}
                                 </div>
                             </div>
+                            <div className="flex items-center justify-between bg-black/5 dark:bg-white/5 p-4 rounded-lg">
+                                <label htmlFor="isRecurring" className="font-medium text-gray-900 dark:text-white/90">Tarefa Recorrente</label>
+                                <button type="button" role="switch" aria-checked={formIsRecurring} onClick={() => setFormIsRecurring(!formIsRecurring)} id="isRecurring" className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 dark:focus:ring-offset-black focus:ring-orange-400 ${formIsRecurring ? 'bg-orange-500' : 'bg-gray-400 dark:bg-gray-700'}`}><span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formIsRecurring ? 'translate-x-6' : 'translate-x-1'}`} /></button>
+                            </div>
+                            {formIsRecurring && (<div className="animate-pop-in">
+                                <label htmlFor="recurrenceFrequency" className="text-sm text-gray-600 dark:text-white/70 mb-1 block">Frequência</label>
+                                <select id="recurrenceFrequency" value={formRecurrenceFrequency} onChange={e => setFormRecurrenceFrequency(e.target.value as RecurrenceFrequency)} className={formInputClasses}>
+                                    {(Object.keys(recurrenceMap) as RecurrenceFrequency[]).map(key => 
+                                        <option key={key} value={key} className="bg-gray-300 dark:bg-gray-900">{recurrenceMap[key]}</option>
+                                    )}
+                                </select>
+                            </div>)}
                         </form>
                     </div>
                 </div>

@@ -1,3 +1,9 @@
+export interface Subtask {
+    id: number;
+    text: string;
+    completed: boolean;
+}
+
 export interface ListItem {
     id: number;
     text: string;
@@ -13,6 +19,10 @@ export interface Task {
     completed: boolean;
     dueDate?: string; // YYYY-MM-DD
     importance?: 'low' | 'medium' | 'high';
+    recurring?: {
+        frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
+    };
+    subtasks?: Subtask[];
 }
 
 

@@ -413,10 +413,13 @@ const Dashboard: React.FC<DashboardProps> = ({ navigateTo, theme, toggleTheme })
             </div>
 
             <div className="flex flex-col items-center w-full">
-                <h1 className="text-5xl font-extralight tracking-[0.3em] bg-gradient-to-r from-orange-300 via-rose-400 to-pink-500 bg-clip-text text-transparent bg-[length:200%_auto] animate-[shine_5s_linear_infinite]">
+                <h1 className="text-5xl font-extralight tracking-[0.3em] bg-gradient-to-r from-orange-300 via-rose-400 to-pink-500 bg-clip-text text-transparent bg-[length:200%_auto] animate-[shine_5s_linear_infinite] animate-pop-in">
                     ZENITH
                 </h1>
-                <p className="mt-4 mb-8 text-sm font-light text-gray-600 dark:text-white/70">
+                <p 
+                    className="mt-4 mb-8 text-sm font-light text-gray-600 dark:text-white/70 animate-pop-in"
+                    style={{ animationDelay: '200ms' }}
+                >
                     Aguardando suas coordenadas.
                 </p>
                 <WeekCalendar 
