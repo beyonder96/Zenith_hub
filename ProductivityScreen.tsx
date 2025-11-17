@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { getTasks, addTask, updateTask, deleteTask, Task, Subtask } from './db';
+import { getTasks, addTask, updateTask, deleteTask, Task, Subtask, NewTaskData } from './firebaseDb';
 import { GoogleGenAI, Type } from "@google/genai";
 
 const FOCUS_DURATION = 25 * 60; // 25 minutes
@@ -37,7 +37,12 @@ const sortTasks = (tasks: Task[]): Task[] => {
             if (!aDate && bDate) return 1;
             if (aDate && bDate) return aDate.getTime() - bDate.getTime();
         }
-        return b.id - a.id;
+        // Firestore IDs are strings, so we can't subtract them.
+        // A simple string comparison is fine for sorting by creation time if IDs are time-ordered.
+        // However, for stability, we can just compare them lexicographically.
+        if (a.id < b.id) return 1;
+        if (a.id > b.id) return -1;
+        return 0;
     });
 };
 
@@ -195,9 +200,9 @@ const calculateNextDueDate = (currentDateStr: string, frequency: RecurrenceFrequ
 
 const ProductivityScreen: React.FC = () => {
     const [tasks, setTasks] = useState<Task[]>([]);
-    const [loadingTaskId, setLoadingTaskId] = useState<number | null>(null);
-    const [focusedTaskId, setFocusedTaskId] = useState<number | null>(null);
-    const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+    const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
+    const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null);
+    const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
     const [timerMode, setTimerMode] = useState<'focus' | 'break'>('focus');
     const [timeLeft, setTimeLeft] = useState(FOCUS_DURATION);
@@ -218,7 +223,7 @@ const ProductivityScreen: React.FC = () => {
     
     // State for Drag and Drop
     const [dragOverInfo, setDragOverInfo] = useState<{ subtaskId: number; position: 'top' | 'bottom' } | null>(null);
-    const draggedSubtaskRef = useRef<{ taskId: number; subtask: Subtask } | null>(null);
+    const draggedSubtaskRef = useRef<{ taskId: string; subtask: Subtask } | null>(null);
 
     const focusedTask = useMemo(() => tasks.find(t => t.id === focusedTaskId), [tasks, focusedTaskId]);
 
@@ -277,31 +282,35 @@ const ProductivityScreen: React.FC = () => {
         e.preventDefault();
         if (formText.trim() === '') return;
     
-        const taskData = {
-            text: formText,
-            dueDate: formDueDate || undefined,
-            importance: formImportance,
-            recurring: formIsRecurring ? { frequency: formRecurrenceFrequency } : undefined,
-        };
-    
         if (editingTask) {
-            const updatedTask = { ...editingTask, ...taskData };
+            const updatedTask: Task = {
+                ...editingTask,
+                text: formText,
+                dueDate: formDueDate || undefined,
+                importance: formImportance,
+                recurring: formIsRecurring ? { frequency: formRecurrenceFrequency } : undefined,
+            };
             if (formIsRecurring) {
                 updatedTask.completed = false; // Recurring tasks should be active
             }
-            setTasks(prev => sortTasks(prev.map(t => t.id === editingTask.id ? updatedTask : t)));
             await updateTask(updatedTask);
+            setTasks(prev => sortTasks(prev.map(t => t.id === editingTask.id ? updatedTask : t)));
         } else {
-            const newTask: Task = {
-                id: Date.now(),
+            const newTaskData: NewTaskData = {
                 text: formText,
                 completed: false,
                 dueDate: formDueDate || undefined,
                 importance: formImportance,
                 recurring: formIsRecurring ? { frequency: formRecurrenceFrequency } : undefined,
+                subtasks: [],
             };
-            setTasks(prev => sortTasks([newTask, ...prev]));
-            await addTask(newTask);
+            try {
+                const newTask = await addTask(newTaskData);
+                setTasks(prev => sortTasks([newTask, ...prev]));
+            } catch (error) {
+                console.error("Failed to add task:", error);
+                // Optionally: show an error message to the user
+            }
         }
         closeModal();
     };
@@ -326,7 +335,7 @@ const ProductivityScreen: React.FC = () => {
         setOpenMenuId(null);
     };
 
-    const handleToggleSubtask = async (taskId: number, subtaskId: number) => {
+    const handleToggleSubtask = async (taskId: string, subtaskId: number) => {
         const taskToUpdate = tasks.find(t => t.id === taskId);
         if (!taskToUpdate || !taskToUpdate.subtasks) return;
 
@@ -342,7 +351,7 @@ const ProductivityScreen: React.FC = () => {
     };
 
 
-    const handleDeleteTask = async (id: number) => {
+    const handleDeleteTask = async (id: string) => {
         if (focusedTaskId === id) setFocusedTaskId(null);
         setTasks(prev => prev.filter(t => t.id !== id));
         await deleteTask(id);
@@ -402,7 +411,7 @@ const ProductivityScreen: React.FC = () => {
         }
     };
     
-    const handleMenuToggle = (taskId: number) => {
+    const handleMenuToggle = (taskId: string) => {
         setOpenMenuId(prev => (prev === taskId ? null : taskId));
     };
 
@@ -443,7 +452,7 @@ const ProductivityScreen: React.FC = () => {
     };
     
     // --- Subtask Drag and Drop Handlers ---
-    const handleSubtaskDragStart = (e: React.DragEvent<HTMLLIElement>, taskId: number, subtask: Subtask) => {
+    const handleSubtaskDragStart = (e: React.DragEvent<HTMLLIElement>, taskId: string, subtask: Subtask) => {
         draggedSubtaskRef.current = { taskId, subtask };
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', subtask.id.toString()); // For Firefox compatibility
@@ -468,7 +477,7 @@ const ProductivityScreen: React.FC = () => {
         setDragOverInfo(null);
     };
 
-    const handleSubtaskDrop = async (e: React.DragEvent<HTMLLIElement>, targetTaskId: number, targetSubtask: Subtask) => {
+    const handleSubtaskDrop = async (e: React.DragEvent<HTMLLIElement>, targetTaskId: string, targetSubtask: Subtask) => {
         e.preventDefault();
         if (!draggedSubtaskRef.current) return;
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { getTasks, Task, getItems, ListItem as SupermarketItem } from './db';
+import { getItems, ListItem as SupermarketItem } from './db';
+import { getTasks, Task } from './firebaseDb';
 
 // --- Type Definitions (to be shared or defined locally) ---
 interface Transaction {
@@ -243,13 +244,13 @@ const Dashboard: React.FC<DashboardProps> = ({ navigateTo, theme, toggleTheme })
                 setProfilePic(storedProfilePic);
             }
 
-            // Load tasks from IndexedDB
+            // Load tasks from Firestore
             const loadTasks = async () => {
                 try {
                     const dbTasks = await getTasks();
                     setTasks(dbTasks);
                 } catch (error) {
-                    console.error("Error loading tasks from DB", error);
+                    console.error("Error loading tasks from Firestore", error);
                 }
             };
             loadTasks();
